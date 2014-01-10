@@ -1,0 +1,16 @@
+# Emacs
+*~
+
+# Mac OS X
+.DS_Store
+
+# json/
+json
+
+# csv/
+csv
+
+# Vagrant
+.vagrant
+
+

@@ -1,0 +1,162 @@
+<!doctype html>
+<html>
+  <head>
+    <title>MODIS LANCE FIRMS</title>
+    <style>
+      html, body, #map-div {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+      }
+    </style>
+    <script src="http://maps.googleapis.com/maps/api/js?sensor=false"></script>
+    <script src="js/CanvasLayer.js"></script>
+    <script type="text/javascript" src="js/base.js"></script>
+    <script type="text/javascript" src="js/io.js"></script>
+    <script type="text/javascript" src="js/utils.js"></script>
+    <script type="text/javascript" src="js/stats.min.js"></script>
+    <!-- FirmsData Obj -->
+    <script type="text/javascript">
+      function FirmsData(options) {
+        this.locationUrls_ = [];
+        this.dataIndexUrl_;
+
+        this.locationData_ = [];
+        this.dataIndex_ = [];
+
+        if (options) {
+          this.setOptions(options);
+        }
+
+        this.setLocationData_();
+        this.setDataIndex_();
+
+      }
+
+      FirmsData.prototype.setOptions = function(options) {
+        if (options.locationUrls !== undefined) {
+          this.setLocationUrls(options.locationUrls);
+        }
+        if (options.dataIndexUrl !== undefined) {
+          this.setDataIndexUrl(options.dataIndexUrl);
+        }
+      }
+ 
+      FirmsData.prototype.setLocationUrls = function(locationUrls) {
+        this.locationUrls_ = locationUrls;
+      }
+
+      FirmsData.prototype.setDataIndexUrl = function(dataIndexUrl) {
+        this.dataIndexUrl_ = dataIndexUrl;
+      }
+
+
+      FirmsData.prototype.setLocationData_ = function() {
+        var that = this;
+        for (var i = 0; i < this.locationUrls_.length; i++) {
+          var parseLocationData_ = function(index) {
+            return function(arrayBuffer, exception) {          
+              if (arrayBuffer) {
+                var data = new DataView(arrayBuffer);
+                var rawData = new Float32Array(
+                  data.byteLength / Float32Array.BYTES_PER_ELEMENT);
+                var len = rawData.length;
+                for (var j = 0; j < len; j += 2) {
+                  lat = data.getFloat32(j * Float32Array.BYTES_PER_ELEMENT, true);
+                  lon = data.getFloat32((j +1 ) * Float32Array.BYTES_PER_ELEMENT, true);
+                  var pixel = LatLongToPixelXY(lat, lon);
+                  rawData[j] = pixel.x;
+                  rawData[j+1] = pixel.y;
+                }
+                that.locationData_[index] = rawData;
+              }
+              console.log("Index " + index + " is done");
+            }
+          }(i);
+          tdl.io.loadArrayBuffer(this.locationUrls_[i], parseLocationData_);
+        }
+      }
+
+      FirmsData.prototype.setDataIndex_ = function() {
+        var that = this;
+        var parseDataIndex_ = function() {
+          return function(arrayBuffer, exception) {          
+            if (arrayBuffer) {
+              data = new DataView(arrayBuffer);
+      	      var rawData = new Int32Array(
+                data.byteLength / Int32Array.BYTES_PER_ELEMENT);
+              var len = rawData.length;
+              for (var i = 0; i < len; i += 3) {
+                date = data.getInt32(i * Int32Array.BYTES_PER_ELEMENT, true);
+                count = data.getInt32((i + 1) * Int32Array.BYTES_PER_ELEMENT, true);
+                index0 = data.getInt32((i + 2) * Int32Array.BYTES_PER_ELEMENT, true);
+	        that.dataIndex_.push({'date': date, 'count': count, 'index0': index0});
+	      }
+            }
+          } 
+        }();
+        tdl.io.loadArrayBuffer(this.dataIndexUrl_, parseDataIndex_);
+      }
+
+      FirmsData.prototype.isLocationDataLoaded = function() {
+        for (var i = 0; i < this.locationUrls_.length; i++) {
+          if (this.locationData_[i] === undefined) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      FirmsData.prototype.isDataIndexLoaded = function() {
+        return (this.dataIndex_.length > 0);
+      }
+
+      FirmsData.prototype.dataLoadedHandler_ = function() {
+        if (this.isLocationDataLoaded && this.isDataIndexLoaded) {
+          var data = new Float32Array(this.pointCount * 2);
+	  var offset = 0;
+          for (var i = 0; i < this.urls.length; i++) {
+	    data.set(this.locationData_[i], offset);
+	    offset += this.locationData_[i].length;
+          }
+  	  // create webgl buffer, bind it, and load rawData into it
+          pointArrayBuffer = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, pointArrayBuffer);
+          gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+
+          // enable the 'worldCoord' attribute in the shader to receive buffer
+          var attributeLoc = gl.getAttribLocation(pointProgram, 'worldCoord');
+          gl.enableVertexAttribArray(attributeLoc);
+
+          // tell webgl how buffer is laid out (pairs of x,y coords)
+          gl.vertexAttribPointer(attributeLoc, 2, gl.FLOAT, false, 0, 0);
+
+          this.locationData_ = null;
+       }        
+      }
+    </script>
+
+    <script type="text/javascript">
+      function firmsDataLoaded() {
+        console.log('firmsDataLoaded');
+      }
+      function init() {
+        var firmsDataOptions = {
+          locationUrls: ["bin/firms-2000_latlon.bin", 
+          "bin/firms-2001_latlon.bin", 
+          "bin/firms-2002_latlon.bin", 
+          "bin/firms-2003_latlon.bin"],
+          dataIndexUrl: "bin/973036800-1072828800_index.bin",
+        }
+        firmsData = new FirmsData(firmsDataOptions);
+        console.log(firmsData.isLocationDataLoaded());
+        console.log(firmsData.isDataIndexLoaded());
+        
+      }
+      document.addEventListener('DOMContentLoaded', init, false);
+    </script>
+  </head>
+  <body>
+    <div id="map-div"></div>
+  </body>
+</html>
