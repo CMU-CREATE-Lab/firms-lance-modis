@@ -1,0 +1,7 @@
+{
+  "host": "localhost",
+  "database": "lance_firms_modis",
+  "user": "dev",
+  "password": "djdeuydf48t8",
+  "table": "firms84781383933007"
+}
